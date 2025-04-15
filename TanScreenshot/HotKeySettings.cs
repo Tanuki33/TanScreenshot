@@ -28,21 +28,34 @@ namespace TanScreenshot
 
         private void Hook_KeyboardPressed(object sender, GlobalKeyboardHookEventArgs e)
         {
+            // Map specific L/R keys to generic Control/Alt/Shift
+            Keys currentKey = e.KeyboardData.Key;
+            Keys mappedKey = currentKey;
+
+            if (currentKey == Keys.LControlKey || currentKey == Keys.RControlKey)
+                mappedKey = Keys.Control;
+            else if (currentKey == Keys.LMenu || currentKey == Keys.RMenu)
+                mappedKey = Keys.Alt;
+            else if (currentKey == Keys.LShiftKey || currentKey == Keys.RShiftKey)
+                mappedKey = Keys.Shift;
+
             if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyDown ||
                 e.KeyboardState == GlobalKeyboardHook.KeyboardState.SysKeyDown)
             {
-                if (!IsModifierKey(e.KeyboardData.Key) || !_currentKeys.Contains(e.KeyboardData.Key))
+                // Add the *mapped* key if it's not already there
+                if (!_currentKeys.Contains(mappedKey))
                 {
-                    _currentKeys.Add(e.KeyboardData.Key);
-                    _debounceTimer.Stop();
+                    _currentKeys.Add(mappedKey);
+                    _debounceTimer.Stop(); // Reset debounce timer on new key press
                     _debounceTimer.Start();
                 }
-                e.Handled = true;
+                e.Handled = true; // Prevent further processing of the key press
             }
             else if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyUp ||
                      e.KeyboardState == GlobalKeyboardHook.KeyboardState.SysKeyUp)
             {
-                _currentKeys.Remove(e.KeyboardData.Key);
+                // Remove the *mapped* key on release
+                _currentKeys.Remove(mappedKey);
             }
         }
 
@@ -56,23 +69,18 @@ namespace TanScreenshot
         {
             var orderedKeys = new List<Keys>();
 
-            // Handle modifiers
-            if (_currentKeys.Contains(Keys.LControlKey) || _currentKeys.Contains(Keys.RControlKey))
+            if (_currentKeys.Contains(Keys.Control))
                 orderedKeys.Add(Keys.Control);
-
-            if (_currentKeys.Contains(Keys.LMenu) || _currentKeys.Contains(Keys.RMenu))
+            if (_currentKeys.Contains(Keys.Alt))
                 orderedKeys.Add(Keys.Alt);
-
-            if (_currentKeys.Contains(Keys.LShiftKey) || _currentKeys.Contains(Keys.RShiftKey))
+            if (_currentKeys.Contains(Keys.Shift))
                 orderedKeys.Add(Keys.Shift);
 
-            // Add non-modifier keys
-            orderedKeys.AddRange(_currentKeys.Where(k => !IsModifierKey(k)));
+            orderedKeys.AddRange(_currentKeys.Where(k => !IsModifierKey(k)).OrderBy(k => k.ToString()));
 
-            // Update both display and stored keys
             this.Invoke((MethodInvoker)delegate
             {
-                NewHotKey = orderedKeys.Distinct().ToArray();
+                NewHotKey = orderedKeys.ToArray();
                 lblHotKey.Text = NewHotKey.Length > 0 ? string.Join(" + ", NewHotKey.Select(KeyDisplayHelper.GetDisplayName)) : "No key selected";
             });
         }
@@ -84,9 +92,9 @@ namespace TanScreenshot
 
         private bool IsModifierKey(Keys key)
         {
-            return key == Keys.LControlKey || key == Keys.RControlKey ||
-                   key == Keys.LMenu || key == Keys.RMenu ||
-                   key == Keys.LShiftKey || key == Keys.RShiftKey;
+            return key == Keys.Control || key == Keys.LControlKey || key == Keys.RControlKey ||
+                   key == Keys.Alt || key == Keys.LMenu || key == Keys.RMenu ||
+                   key == Keys.Shift || key == Keys.LShiftKey || key == Keys.RShiftKey;
         }
 
         private void btnSave_Click(object sender, EventArgs e)

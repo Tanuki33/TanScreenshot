@@ -278,10 +278,14 @@ namespace TanScreenshot
 
             try
             {
-                if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyDown)
+                if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyDown || e.KeyboardState == GlobalKeyboardHook.KeyboardState.SysKeyDown)
                 {
                     _pressedKeys.Add(e.KeyboardData.Key);
-                    bool triggerMet = !_processingScreenshot && _hook.RegisteredKeys.All(k => _pressedKeys.Contains(k));
+                    // Map the currently pressed keys to their generic equivalents for matching
+                    var genericPressed = MapToGenericModifiers(_pressedKeys);
+                    // Check if the *generic* pressed keys contain *all* the registered keys
+                    bool requiredKeysPresent = _hook.RegisteredKeys != null && _hook.RegisteredKeys.Length > 0;
+                    bool triggerMet = requiredKeysPresent && !_processingScreenshot && _hook.RegisteredKeys.All(k => genericPressed.Contains(k));
 
                     if (triggerMet)
                     {
@@ -314,7 +318,7 @@ namespace TanScreenshot
                             }, TaskScheduler.Default);
                     }
                 }
-                else if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyUp)
+                else if (e.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyUp || e.KeyboardState == GlobalKeyboardHook.KeyboardState.SysKeyUp)
                 {
                     // Remove the key when it's released.
                     // This remains important for scenarios involving modifier keys (Ctrl, Shift, Alt)
@@ -686,6 +690,33 @@ namespace TanScreenshot
             ConfigManager.SaveConfig(_config); // Save immediately
             LogToConsole($"[{DateTime.Now:T}] Setting 'Copy To Clipboard' changed to: {isChecked}");
             LogToConsole(new string('-', 80));
+        }
+
+        private HashSet<Keys> MapToGenericModifiers(HashSet<Keys> specificKeys)
+        {
+            var genericKeys = new HashSet<Keys>();
+            bool ctrl = false;
+            bool alt = false;
+            bool shift = false;
+
+            foreach (var key in specificKeys)
+            {
+                if (key == Keys.LControlKey || key == Keys.RControlKey)
+                    ctrl = true;
+                else if (key == Keys.LMenu || key == Keys.RMenu)
+                    alt = true;
+                else if (key == Keys.LShiftKey || key == Keys.RShiftKey)
+                    shift = true;
+                else
+                    genericKeys.Add(key); // Add non-modifiers directly
+            }
+
+            // Add the generic modifiers if any specific version was pressed
+            if (ctrl) genericKeys.Add(Keys.Control);
+            if (alt) genericKeys.Add(Keys.Alt);
+            if (shift) genericKeys.Add(Keys.Shift);
+
+            return genericKeys;
         }
 
     }
